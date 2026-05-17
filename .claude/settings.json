@@ -3,10 +3,18 @@
     "allow": [
       "Bash(uv init *)",
       "Bash(uv add *)",
-      "Bash(rm main.py)"
+      "Bash(rm main.py)",
+      "Bash(mkdir -p /Users/lucaszhou/works/prjs/codex_register/docs/cloudflare)",
+      "Bash(pnpm install *)",
+      "Bash(pnpm approve-builds *)",
+      "Bash(PNPM_IGNORE_SCRIPTS=false pnpm install --ignore-scripts=false)",
+      "Bash(npm install *)",
+      "Bash(npx wrangler *)",
+      "Bash(uv run *)"
     ],
     "additionalDirectories": [
-      "/Users/lucaszhou/works/prjs/codex_register"
+      "/Users/lucaszhou/works/prjs/codex_register",
+      "/Users/lucaszhou/works/prjs/codex_register/docs/cloudflare"
     ]
   }
 }

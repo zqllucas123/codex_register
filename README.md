@@ -25,7 +25,7 @@
 3. **安装依赖**：
    本项目高度依赖 `curl_cffi` 库，请使用 pip 进行安装：
    ```bash
-   pip install curl_cffi
+   pip install ·
    ```
 
 ## 💻 使用说明
@@ -33,19 +33,25 @@
 脚本提供了极其简单的命令行调用方式，支持无限循环注册和代理配置。
 
 ### 1. 基础运行 (无限循环注册)
+
 脚本默认会一直循环运行，每次注册完成后随机休息 5-15 秒，适合挂机批量生成。
+
 ```bash
 python chatgpt.py
 ```
 
 ### 2. 单次运行测试 (`--once`)
+
 如果你只想测试注册一个账号，请带上 `--once` 参数：
+
 ```bash
 python chatgpt.py --once
 ```
 
 ### 3. 配置本地代理 (`--proxy`)
+
 由于 OpenAI 对网络环境有严格要求，你可以直接通过命令行传入代理地址（支持 HTTP/HTTPS/SOCKS5）：
+
 ```bash
 python chatgpt.py --proxy "http://127.0.0.1:7890"
 
@@ -67,4 +73,5 @@ python chatgpt.py --once --proxy "http://127.0.0.1:7890"
 3. OpenAI 的接口风控策略经常变动，不保证代码的永久可用性。因使用本脚本带来的任何封号风险或法律纠纷，由使用者自行承担，与开发者无关。
 
 ---
+
 *If you find this project helpful, please consider giving it a ⭐!*

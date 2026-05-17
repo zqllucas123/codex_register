@@ -24,104 +24,86 @@ from curl_cffi.requests import Session
 OUT_DIR = Path(__file__).parent.resolve()
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
-# ========== 1. Mail.tm 临时邮箱处理模块 ==========
+# ========== 1. Cloud Mail 域名邮箱模块 ==========
 
-def rstr(n=10): 
+CLOUD_MAIL_BASE   = "https://chatgpt-register-email.chatvista-email.workers.dev"
+CLOUD_MAIL_EMAIL  = "admin@chatvista.online"   # 填入 gen_accounts.py 生成的账号
+CLOUD_MAIL_PASS   = ""                          # 填入对应密码
+CLOUD_MAIL_DOMAIN = "chatvista.online"
+
+def rstr(n=10):
     return "".join(random.choices(string.ascii_lowercase + string.digits, k=n))
 
-def mreq(mt, pt, js=None, tk=None, proxies=None):
-    hdrs = {
-        "content-type": "application/json",
-        "accept": "application/json",
-        "user-agent": UA,
-        "pragma": "no-cache"
-    }
-    if tk: 
-        hdrs["authorization"] = f"Bearer {tk}"
-    try:
-        with Session(proxies=proxies) as s:
-            return s.request(mt, f"https://api.mail.tm{pt}", json=js, headers=hdrs, timeout=20)
-    except: 
+class CloudMailClient:
+    def __init__(self, base, proxies=None):
+        self.base = base.rstrip("/")
+        self.proxies = proxies
+        self.token = None
+
+    def _req(self, method, path, **kwargs):
+        hdrs = {"content-type": "application/json", "accept": "application/json"}
+        if self.token:
+            hdrs["Authorization"] = self.token
+        try:
+            with Session(proxies=self.proxies) as s:
+                return s.request(method, f"{self.base}/api{path}", headers=hdrs, **kwargs)
+        except:
+            return None
+
+    def login(self, email, password):
+        r = self._req("POST", "/login", json={"email": email, "password": password})
+        if r and r.status_code == 200:
+            self.token = r.json()["data"]["token"]
+            return True
+        return False
+
+    def add_account(self, email):
+        r = self._req("POST", "/account/add", json={"email": email})
+        if r and r.status_code == 200:
+            return r.json()["data"]["accountId"]
         return None
 
-def getotp(tk, proxies=None):
-    for _ in range(60):
-        r = mreq("GET", "/messages", tk=tk, proxies=proxies)
-        if r and r.status_code == 200:
-            try: 
-                dat = r.json()
-            except: 
-                time.sleep(8); continue
-                
-            msgs = dat.get("hydra:member", []) if isinstance(dat, dict) else dat
-            if not isinstance(msgs, list): msgs = []
-                
-            for m in msgs:
-                if not isinstance(m, dict): continue
-                sb = m.get("subject", "")
-                intro = m.get("intro", "")
-                if "OpenAI" in sb or "ChatGPT" in sb or "code" in intro:
-                    rb = mreq("GET", f"/messages/{m.get('id')}", tk=tk, proxies=proxies)
-                    if rb and rb.status_code == 200:
-                        txt = rb.json().get("text", "")
-                        mt = re.search(r"(\d{6})", txt) or re.search(r"(\d{6})", sb)
-                        if mt: 
-                            return mt.group(1)
-        time.sleep(8)
-    return None
+    def delete_account(self, account_id):
+        self._req("DELETE", f"/account/delete?accountId={account_id}")
 
-def setup_mail_tm(proxies=None):
-    """动态获取 mail.tm 邮箱并返回所需数据"""
-    mail_pw = "at41rvxgptye"
-    
-    # 动态获取当前可用的邮箱域名
-    domain_res = mreq("GET", "/domains", proxies=proxies)
-    if not domain_res or domain_res.status_code != 200:
-        print("  [!] 无法获取可用邮箱域名")
-        return None, None, None
-    
-    try:
-        js_data = domain_res.json()
-        if isinstance(js_data, list):
-            domains_data = js_data
-        elif isinstance(js_data, dict):
-            domains_data = js_data.get("hydra:member", js_data.get("hydra:collection", []))
-        else:
-            domains_data = []
+    def poll_code(self, account_id, timeout=480, interval=8):
+        last_id = 0
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            r = self._req("GET", f"/email/latest?emailId={last_id}&accountId={account_id}&allReceive=0")
+            if r and r.status_code == 200:
+                msgs = r.json().get("data") or []
+                for msg in msgs:
+                    last_id = max(last_id, msg.get("emailId", 0))
+                    code = msg.get("code", "")
+                    if code:
+                        return code
+                    m = re.search(r"\b(\d{6})\b", msg.get("text", ""))
+                    if m:
+                        return m.group(1)
+            time.sleep(interval)
+        return None
 
-        if not domains_data:
-            print("  [!] 域名列表为空")
-            return None, None, None
-            
-        active_domain = domains_data[0].get("domain")
-    except Exception as e:
-        print(f"  [!] 解析域名失败: {e}")
+def setup_cloud_mail(proxies=None):
+    client = CloudMailClient(CLOUD_MAIL_BASE, proxies)
+    if not client.login(CLOUD_MAIL_EMAIL, CLOUD_MAIL_PASS):
+        print("  [!] Cloud Mail 登录失败")
         return None, None, None
 
-    email = f"{rstr(10)}@{active_domain}"
-    openai_password = _gen_password()  # 为 OpenAI 账户生成高强度密码
-    
-    # 注册 mail.tm 邮箱
-    r = mreq("POST", "/accounts", {"address": email, "password": mail_pw}, proxies=proxies)
-    if not r or r.status_code not in [200, 201]: 
-        print(f"  [!] 邮箱注册被拒: {r.text if r else '无响应'}")
-        return None, None, None
-        
-    # 获取 mail.tm 的 Token
-    r = mreq("POST", "/token", {"address": email, "password": mail_pw}, proxies=proxies)
-    if not r or r.status_code != 200: 
-        print("  [!] 获取邮箱 Token 失败")
-        return None, None, None
-        
-    mail_token = r.json().get("token")
-    if not mail_token:
+    email = f"{rstr(10)}@{CLOUD_MAIL_DOMAIN}"
+    account_id = client.add_account(email)
+    if not account_id:
+        print(f"  [!] 创建邮箱失败: {email}")
         return None, None, None
 
-    # 定义提取验证码的闭包函数
+    openai_password = _gen_password()
+
     def fetch_code():
         print("  [*] 正在等待验证码 (最多等待约8分钟)...")
-        return getotp(mail_token, proxies=proxies)
-        
+        code = client.poll_code(account_id)
+        client.delete_account(account_id)
+        return code
+
     return email, openai_password, fetch_code
 
 
@@ -304,8 +286,8 @@ def run(proxy: Optional[str]) -> Optional[tuple[str, str, str]]:
     s = requests.Session(proxies=proxies, impersonate="chrome120")
     s.headers.update({"user-agent": UA})
 
-    print(f"[*] 初始化请求，准备获取临时邮箱...")
-    mail_data = setup_mail_tm(proxies)
+    print(f"[*] 初始化请求，准备获取 Cloud Mail 邮箱...")
+    mail_data = setup_cloud_mail(proxies)
     if not mail_data or not mail_data[0]:
         print("[Error] 获取 mail.tm 邮箱失败")
         return None
