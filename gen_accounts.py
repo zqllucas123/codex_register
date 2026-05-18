@@ -5,7 +5,7 @@ import string
 import time
 from pathlib import Path
 
-from curl_cffi.requests import Session
+import requests as _requests_lib
 
 CLOUD_MAIL_BASE   = "https://chatgpt-register-email.chatvista-email.workers.dev"
 CLOUD_MAIL_DOMAIN = "chatvista.online"
@@ -53,7 +53,9 @@ def main():
     proxies = {"http": args.proxy, "https": args.proxy} if args.proxy else None
 
     results = []
-    with Session(proxies=proxies, impersonate="chrome120") as s:
+    with _requests_lib.Session() as s:
+        if proxies:
+            s.proxies = proxies
         for i in range(args.count):
             email = f"{rstr(10)}@{CLOUD_MAIL_DOMAIN}"
             password = gen_password()

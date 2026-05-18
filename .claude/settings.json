@@ -10,7 +10,8 @@
       "Bash(PNPM_IGNORE_SCRIPTS=false pnpm install --ignore-scripts=false)",
       "Bash(npm install *)",
       "Bash(npx wrangler *)",
-      "Bash(uv run *)"
+      "Bash(uv run *)",
+      "Bash(python3 -c ' *)"
     ],
     "additionalDirectories": [
       "/Users/lucaszhou/works/prjs/codex_register",
